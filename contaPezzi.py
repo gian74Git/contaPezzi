@@ -4,11 +4,12 @@ from tkinter import *
 import time
 import os
 import time
+from time import sleep
 import pymysql
 import datetime
 from datetime import timedelta
 
-DEBUG = False
+DEBUG = True
 if (not DEBUG):
     CONST_DB = "letturePezziDB"
     import RPi.GPIO as GPIO
@@ -18,6 +19,7 @@ else:
 
 CONST_DIM_CHAR_TITOLI = 90
 CONST_DIM_CHAR_DATI = 120
+CONST_TOT_GIORNALIERO = 598
 
 #18
 CONST_DIM_CHAR_ORARI = 34
@@ -43,6 +45,71 @@ class Application(tk.Frame):
             lbTotFattoGiorn["bg"] = "red"
         else:
             lbTotFattoGiorn["bg"] = "green"
+
+    def update_frame_orari(self):
+        for child in frameOrari.winfo_children():
+            child.destroy()
+
+        lbOra = Label(frameOrari, text="Ora", font =("Helvetica", CONST_DIM_CHAR_ORARI))
+        lbPrevisto = Label(frameOrari, text="Previsto", font =("Helvetica", CONST_DIM_CHAR_ORARI))
+        lbFatti = Label(frameOrari, text="Fatti", font =("Helvetica", CONST_DIM_CHAR_ORARI))
+        lbOra.grid(row=0, column=0, padx=10)
+        lbPrevisto.grid(row=0, column=1, padx=10)
+        lbFatti.grid(row=0, column=2, padx=10)
+
+        # db = pymysql.connect("localhost", "root", "sardegna")
+        cursor = self.db.cursor()
+        cursor.execute("USE " + CONST_DB)
+
+        currDate = datetime.datetime.now().strftime("%Y-%m-%d")
+        self.lLbOrari.clear()
+        lLbOrario = []
+        cursor = self.db.cursor()
+        cursor.execute("SELECT * FROM TOra_Orari order by tOraIni")
+        rowOrario = cursor.fetchone()
+        iRow = 0
+        while rowOrario is not None:
+            iPrevistoOra = rowOrario[3]
+            iRow += 1
+            tmDa = datetime.datetime.strptime(rowOrario[1].__str__(), "%H:%M:%S").strftime("%H:%M")
+            tmA = datetime.datetime.strptime(rowOrario[2].__str__(), "%H:%M:%S").strftime("%H:%M")
+            lLbOrario.append(Label(frameOrari, text = tmDa + " - " + tmA, font = ("Helvetica", CONST_DIM_CHAR_ORARI)))
+            if iPrevistoOra is not None:
+                sPrevistoOra = "%d" %iPrevistoOra
+            else:
+                sPrevistoOra = ""
+                iPrevistoOra = 0
+
+            lLbOrario.append(Label(frameOrari, text=sPrevistoOra, font = ("Helvetica", CONST_DIM_CHAR_ORARI)))
+
+            curLett = self.db.cursor()
+            sQryTmp = "SELECT iLetNumProg FROM TLet_Letture WHERE dLetDataLettura = '%s' and tLetOraIni >= '%s' and tLetOraFine <= '%s'" %(currDate, tmDa, tmA)
+            curLett.execute(sQryTmp)
+            rowTotXOra = curLett.fetchone()
+            iTotPerOra = 0
+            if rowTotXOra != None:
+                iTotPerOra = rowTotXOra[0]
+                self.numPzLettiGiorn = self.numPzLettiGiorn + iTotPerOra
+
+            if (iTotPerOra < iPrevistoOra):
+                bgColor = "red"
+            else:
+                bgColor = "green"
+
+            lLbOrario.append(Label(frameOrari, text = iTotPerOra, bg=bgColor, font = ("Helvetica", 18)))
+            self.lLbOrari.append("idOra=%s" %rowOrario[0])
+            self.lLbOrari.append([lLbOrario, tmDa, tmA, iTotPerOra, iPrevistoOra])
+
+            self.lLbOrari[-1][0][0].grid(row=iRow, column = 0)
+            self.lLbOrari[-1][0][1].grid(row=iRow, column = 1)
+            self.lLbOrari[-1][0][2].grid(row=iRow, column = 2, sticky=W+E+N+S)
+
+            lLbOrario = []
+            rowOrario = cursor.fetchone()
+            curLett.close()
+
+        self.db.commit()
+        cursor.close()
 
     def update_tot_previsto(self, always=False):
         self.minuteNow = datetime.datetime.now().strftime("%M")
@@ -77,7 +144,8 @@ class Application(tk.Frame):
                 lbTotPrevisto["text"] = "0"
 
             cursor.close()
-            # db.close()
+            self.update_frame_orari()
+
 
 
     def update_clock(self, firstLaunch=False):
@@ -102,7 +170,7 @@ class Application(tk.Frame):
             if (row != None):
                 self.numPzTotaleGiorn = row[0]
             else:
-                self.numPzTotaleGiorn = 598
+                self.numPzTotaleGiorn = CONST_TOT_GIORNALIERO
             cursor.close()
             # db.close()
             self.internalImposta()
@@ -151,7 +219,7 @@ class Application(tk.Frame):
             sQry = "insert into TTim_TotaleImpostati set dTimData = '%s', iTimQta = %d" %(datetime.datetime.now().strftime("%Y-%m-%d"), self.numPzTotaleGiorn)
         cursor.execute(sQry)
 
-        sQry = "SELECT count(*) FROM TOra_Orari"
+        sQry = "SELECT count(*) FROM TOra_Orari order by tOraIni"
         cursor.execute(sQry)            
         iTotOre = int(cursor.fetchone()[0])
 
@@ -217,7 +285,7 @@ class Application(tk.Frame):
         row = cursor.fetchone()
         if (row != None):
             self.numPzTotaleGiorn = int(row[0])
-            sQry = "SELECT count(*) FROM TOra_Orari"
+            sQry = "SELECT count(*) FROM TOra_Orari order by tOraIni"
             cursor.execute(sQry)
             iTotOre = int(cursor.fetchone()[0])
             self.iPrevistoOra = int(self.numPzTotaleGiorn / iTotOre)
@@ -247,9 +315,12 @@ class Application(tk.Frame):
         frameLeft = Frame(frame, relief=RAISED, borderwidth=1)
         frameLeft.pack(fill=BOTH, expand=1, side=LEFT)
 
+
+        global frameRight
         frameRight = Frame(frame, relief=RAISED, borderwidth=1)
         frameRight.pack(fill=BOTH, expand=1, side=RIGHT)
 
+        global frameOrari
         frameOrari = Frame(frameRight, relief=RAISED, borderwidth=1)
         frameOrari.pack(fill=Y, side=RIGHT)
 
@@ -257,62 +328,7 @@ class Application(tk.Frame):
         frameRightTop.pack(fill=BOTH, expand=1, side=TOP)
 
         #**********   DEFINIZIONE FRAMES   ***********
-                                
-        lbOra = Label(frameOrari, text="Ora", font =("Helvetica", CONST_DIM_CHAR_ORARI))
-        lbPrevisto = Label(frameOrari, text="Previsto", font =("Helvetica", CONST_DIM_CHAR_ORARI))
-        lbFatti = Label(frameOrari, text="Fatti", font =("Helvetica", CONST_DIM_CHAR_ORARI))
-        lbOra.grid(row=0, column=0, padx=10)
-        lbPrevisto.grid(row=0, column=1, padx=10)
-        lbFatti.grid(row=0, column=2, padx=10)
-
-        # db = pymysql.connect("localhost", "root", "sardegna")
-        cursor = self.db.cursor()
-        cursor.execute("USE " + CONST_DB)
-        
-        #CREAZIONE DELLA LISTA ORARI COSI' COMPOSTA:
-        #[[Label0, Label1, Label2], OraInizio, OraFine, Contatore, totPerOra]
-        lLbOrario = []
-        cursor.execute("SELECT * FROM TOra_Orari")
-        rowOrario = cursor.fetchone()
-        iRow = 0
-        while rowOrario is not None:
-            iPrevistoOra = rowOrario[3]
-            iRow += 1
-            tmDa = datetime.datetime.strptime(rowOrario[1].__str__(), "%H:%M:%S").strftime("%H:%M")
-            tmA = datetime.datetime.strptime(rowOrario[2].__str__(), "%H:%M:%S").strftime("%H:%M")
-            lLbOrario.append(Label(frameOrari, text = tmDa + " - " + tmA, font = ("Helvetica", CONST_DIM_CHAR_ORARI)))
-
-            sPrevistoOra = "%d" %iPrevistoOra
-
-            lLbOrario.append(Label(frameOrari, text=sPrevistoOra, font = ("Helvetica", CONST_DIM_CHAR_ORARI)))
-
-            curLett = self.db.cursor()
-            sQryTmp = "SELECT iLetNumProg FROM TLet_Letture WHERE dLetDataLettura = '%s' and tLetOraIni >= '%s' and tLetOraFine <= '%s'" %(currDate, tmDa, tmA)
-            curLett.execute(sQryTmp)
-            rowTotXOra = curLett.fetchone()
-            iTotPerOra = 0
-            if rowTotXOra != None:
-                iTotPerOra = rowTotXOra[0]
-                self.numPzLettiGiorn = self.numPzLettiGiorn + iTotPerOra
-
-            if (iTotPerOra < iPrevistoOra):
-                bgColor = "red"
-            else:
-                bgColor = "green"
-                
-            lLbOrario.append(Label(frameOrari, text = iTotPerOra, bg=bgColor, font = ("Helvetica", 18)))
-            self.lLbOrari.append("idOra=%s" %rowOrario[0])
-            self.lLbOrari.append([lLbOrario, tmDa, tmA, iTotPerOra, iPrevistoOra])
-
-            self.lLbOrari[-1][0][0].grid(row=iRow, column = 0)
-            self.lLbOrari[-1][0][1].grid(row=iRow, column = 1)
-            self.lLbOrari[-1][0][2].grid(row=iRow, column = 2, sticky=W+E+N+S)
-
-            lLbOrario = []
-            rowOrario = cursor.fetchone()
-            curLett.close()
-        cursor.close()
-        # db.close()
+        self.update_frame_orari()
 
         #**********        PREVISTO        ***********
         lbPrevisto = Label(frameLeft, text="Previsto", font=("Helvetica", CONST_DIM_CHAR_TITOLI))
@@ -433,4 +449,4 @@ app = Application(root)
 
 app.mainloop()
 app.db.close()
-app.destroy()
+#app.destroy()
