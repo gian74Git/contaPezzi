@@ -62,7 +62,9 @@ class Application(tk.Frame):
         cursor.execute("USE " + CONST_DB)
 
         currDate = datetime.datetime.now().strftime("%Y-%m-%d")
-        self.lLbOrari.clear()
+        #self.lLbOrari.clear()
+        #Svuoto la lista. Il .clear vale solo da python3.4 in su.
+        self.lLbOrari[:] = []
         lLbOrario = []
         cursor = self.db.cursor()
         cursor.execute("SELECT * FROM TOra_Orari order by tOraIni")
