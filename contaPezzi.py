@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#!/usr/bin/env python
 import tkinter as tk
 from tkinter import *
 import time
@@ -19,7 +20,7 @@ else:
 
 CONST_DIM_CHAR_TITOLI = 90
 CONST_DIM_CHAR_DATI = 120
-CONST_TOT_GIORNALIERO = 598
+CONST_TOT_GIORNALIERO = 403
 
 #18
 CONST_DIM_CHAR_ORARI = 34
@@ -91,7 +92,8 @@ class Application(tk.Frame):
             iTotPerOra = 0
             if rowTotXOra != None:
                 iTotPerOra = rowTotXOra[0]
-                self.numPzLettiGiorn = self.numPzLettiGiorn + iTotPerOra
+                self.numPzLettiGiorn = iTotPerOra
+                #self.numPzLettiGiorn = self.numPzLettiGiorn + iTotPerOra
 
             if (iTotPerOra < iPrevistoOra):
                 bgColor = "red"
