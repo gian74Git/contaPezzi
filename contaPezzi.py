@@ -92,7 +92,11 @@ class Application(tk.Frame):
             iTotPerOra = 0
             if rowTotXOra != None:
                 iTotPerOra = rowTotXOra[0]
-                self.numPzLettiGiorn = iTotPerOra
+                totLett = self.db.cursor()
+                sQryTmp = "SELECT Sum(iLetNumProg) FROM TLet_Letture WHERE dLetDataLettura = '%s'" %(currDate)
+                totLett.execute(sQryTmp)
+                self.numPzLettiGiorn = totLett.fetchone()[0]
+                totLett.close()
                 #self.numPzLettiGiorn = self.numPzLettiGiorn + iTotPerOra
 
             if (iTotPerOra < iPrevistoOra):
