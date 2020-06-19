@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-#!/usr/bin/env python
 import tkinter as tk
 from tkinter import *
 import time
